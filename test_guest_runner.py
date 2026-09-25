@@ -46,7 +46,11 @@ class ParserTests(unittest.TestCase):
         self.assertIn("location=Sri%20Lanka", url)
         self.assertIn("start=0", url)
         self.assertIn("sortBy=DD", url)
-        self.assertTrue(url.startswith("https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?"))
+        self.assertTrue(
+            url.startswith(
+                "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?"
+            )
+        )
 
         url_devops = build_search_url("devops engineer", "Sri Lanka")
         self.assertIn("keywords=devops%20engineer", url_devops)
