@@ -30,15 +30,17 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(retry_seconds("invalid"), 0)
 
     def test_query_rotation(self):
-        # 300-second slots rotate deterministically
+        # 300-second slots rotate deterministically through 4 queries
         q0 = select_query(now=0)
         q1 = select_query(now=300)
         q2 = select_query(now=600)
         q3 = select_query(now=900)
-        self.assertEqual(q0, ("software engineer", "Sri Lanka"))
-        self.assertEqual(q1, ("devops engineer", "Sri Lanka"))
-        self.assertEqual(q2, ("cloud engineer", "Sri Lanka"))
-        self.assertEqual(q3, ("software engineer", "Sri Lanka"))
+        q4 = select_query(now=1200)
+        self.assertEqual(q0, ("software engineer", "Sri Lanka", None))
+        self.assertEqual(q1, ("devops engineer", "Sri Lanka", None))
+        self.assertEqual(q2, ("software engineer", "Worldwide", "2"))
+        self.assertEqual(q3, ("devops engineer", "Worldwide", "2"))
+        self.assertEqual(q4, ("software engineer", "Sri Lanka", None))
 
     def test_build_search_url(self):
         url = build_search_url("software engineer", "Sri Lanka")
@@ -46,14 +48,17 @@ class ParserTests(unittest.TestCase):
         self.assertIn("location=Sri%20Lanka", url)
         self.assertIn("start=0", url)
         self.assertIn("sortBy=DD", url)
+        self.assertNotIn("f_WT", url)
         self.assertTrue(
             url.startswith(
                 "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?"
             )
         )
 
-        url_devops = build_search_url("devops engineer", "Sri Lanka")
-        self.assertIn("keywords=devops%20engineer", url_devops)
+        url_remote = build_search_url("software engineer", "Worldwide", "2")
+        self.assertIn("keywords=software%20engineer", url_remote)
+        self.assertIn("location=Worldwide", url_remote)
+        self.assertIn("f_WT=2", url_remote)
 
 
 if __name__ == "__main__":
