@@ -12,9 +12,10 @@ from html.parser import HTMLParser
 from urllib.parse import urlsplit
 
 GUEST_QUERIES = (
-    ("software engineer", "Sri Lanka"),
-    ("devops engineer", "Sri Lanka"),
-    ("cloud engineer", "Sri Lanka"),
+    ("software engineer", "Sri Lanka", None),
+    ("devops engineer", "Sri Lanka", None),
+    ("software engineer", "Worldwide", "2"),
+    ("devops engineer", "Worldwide", "2"),
 )
 
 
@@ -24,9 +25,17 @@ def select_query(now=None, queries=GUEST_QUERIES):
     return queries[index]
 
 
-def build_search_url(keywords, location):
+def build_search_url(keywords, location, f_wt=None):
+    query_params = {
+        "keywords": keywords,
+        "location": location,
+        "start": 0,
+        "sortBy": "DD",
+    }
+    if f_wt:
+        query_params["f_WT"] = f_wt
     params = urllib.parse.urlencode(
-        {"keywords": keywords, "location": location, "start": 0, "sortBy": "DD"},
+        query_params,
         quote_via=urllib.parse.quote,
     )
     return f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?{params}"
@@ -137,8 +146,10 @@ def main():
     if health.get("next_check", 0) > time.time():
         print(json.dumps({"result": "backoff", "next_check": health["next_check"]}))
         return
-    keywords, location = select_query()
-    url = build_search_url(keywords, location)
+    query = select_query()
+    keywords, location = query[0], query[1]
+    f_wt = query[2] if len(query) > 2 else None
+    url = build_search_url(keywords, location, f_wt)
     req = urllib.request.Request(
         url, headers={"User-Agent": "JobRadar/1.0 (personal job discovery)", "Accept": "text/html"}
     )
@@ -164,6 +175,8 @@ def main():
                 {
                     "result": "source_unavailable",
                     "query": keywords,
+                    "location": location,
+                    "remote": bool(f_wt),
                     "http_status": error.code,
                     **result,
                 }
@@ -172,7 +185,17 @@ def main():
         return
     except (urllib.error.URLError, TimeoutError, ValueError):
         result = worker("/guest-health", {"status": 503})
-        print(json.dumps({"result": "source_unavailable", "query": keywords, **result}))
+        print(
+            json.dumps(
+                {
+                    "result": "source_unavailable",
+                    "query": keywords,
+                    "location": location,
+                    "remote": bool(f_wt),
+                    **result,
+                }
+            )
+        )
         return
     result = worker("/guest-ingest", parser.jobs)
     print(
@@ -180,6 +203,8 @@ def main():
             {
                 "result": "ingested",
                 "query": keywords,
+                "location": location,
+                "remote": bool(f_wt),
                 "cards_found": len(parser.jobs),
                 **result,
             }
