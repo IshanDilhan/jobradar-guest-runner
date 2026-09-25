@@ -1,6 +1,6 @@
 import unittest
 
-from guest_runner import Cards, retry_seconds
+from guest_runner import Cards, build_search_url, retry_seconds, select_query
 
 
 class ParserTests(unittest.TestCase):
@@ -28,6 +28,28 @@ class ParserTests(unittest.TestCase):
     def test_retry_after(self):
         self.assertEqual(retry_seconds("14400"), 14400)
         self.assertEqual(retry_seconds("invalid"), 0)
+
+    def test_query_rotation(self):
+        # 300-second slots rotate deterministically
+        q0 = select_query(now=0)
+        q1 = select_query(now=300)
+        q2 = select_query(now=600)
+        q3 = select_query(now=900)
+        self.assertEqual(q0, ("software engineer", "Sri Lanka"))
+        self.assertEqual(q1, ("devops engineer", "Sri Lanka"))
+        self.assertEqual(q2, ("cloud engineer", "Sri Lanka"))
+        self.assertEqual(q3, ("software engineer", "Sri Lanka"))
+
+    def test_build_search_url(self):
+        url = build_search_url("software engineer", "Sri Lanka")
+        self.assertIn("keywords=software%20engineer", url)
+        self.assertIn("location=Sri%20Lanka", url)
+        self.assertIn("start=0", url)
+        self.assertIn("sortBy=DD", url)
+        self.assertTrue(url.startswith("https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?"))
+
+        url_devops = build_search_url("devops engineer", "Sri Lanka")
+        self.assertIn("keywords=devops%20engineer", url_devops)
 
 
 if __name__ == "__main__":
