@@ -5,10 +5,31 @@ import os
 import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from urllib.parse import urlsplit
+
+GUEST_QUERIES = (
+    ("software engineer", "Sri Lanka"),
+    ("devops engineer", "Sri Lanka"),
+    ("cloud engineer", "Sri Lanka"),
+)
+
+
+def select_query(now=None, queries=GUEST_QUERIES):
+    ts = time.time() if now is None else now
+    index = int(ts // 300) % len(queries)
+    return queries[index]
+
+
+def build_search_url(keywords, location):
+    params = urllib.parse.urlencode(
+        {"keywords": keywords, "location": location, "start": 0, "sortBy": "DD"},
+        quote_via=urllib.parse.quote,
+    )
+    return f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?{params}"
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -116,7 +137,8 @@ def main():
     if health.get("next_check", 0) > time.time():
         print(json.dumps({"result": "backoff", "next_check": health["next_check"]}))
         return
-    url = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=software%20engineer&location=Sri%20Lanka&start=0&sortBy=DD"
+    keywords, location = select_query()
+    url = build_search_url(keywords, location)
     req = urllib.request.Request(
         url, headers={"User-Agent": "JobRadar/1.0 (personal job discovery)", "Accept": "text/html"}
     )
@@ -137,14 +159,32 @@ def main():
                 "retryAfter": retry_seconds(error.headers.get("Retry-After", "")),
             },
         )
-        print(json.dumps({"result": "source_unavailable", "http_status": error.code, **result}))
+        print(
+            json.dumps(
+                {
+                    "result": "source_unavailable",
+                    "query": keywords,
+                    "http_status": error.code,
+                    **result,
+                }
+            )
+        )
         return
     except (urllib.error.URLError, TimeoutError, ValueError):
         result = worker("/guest-health", {"status": 503})
-        print(json.dumps({"result": "source_unavailable", **result}))
+        print(json.dumps({"result": "source_unavailable", "query": keywords, **result}))
         return
     result = worker("/guest-ingest", parser.jobs)
-    print(json.dumps({"result": "ingested", "cards_found": len(parser.jobs), **result}))
+    print(
+        json.dumps(
+            {
+                "result": "ingested",
+                "query": keywords,
+                "cards_found": len(parser.jobs),
+                **result,
+            }
+        )
+    )
 
 
 if __name__ == "__main__":
