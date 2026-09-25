@@ -1,0 +1,23 @@
+name: Guest job discovery
+on:
+  schedule:
+    - cron: "2-59/5 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: guest-discovery
+  cancel-in-progress: false
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Discover jobs
+        env:
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          GUEST_INGEST_TOKEN: ${{ secrets.GUEST_INGEST_TOKEN }}
+        run: python3 guest_runner.py
