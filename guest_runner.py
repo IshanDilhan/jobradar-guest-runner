@@ -146,13 +146,23 @@ def main():
     if health.get("next_check", 0) > time.time():
         print(json.dumps({"result": "backoff", "next_check": health["next_check"]}))
         return
-    query = select_query()
+    query_index = health.get("query_index")
+    if isinstance(query_index, int):
+        query = GUEST_QUERIES[query_index % len(GUEST_QUERIES)]
+    else:
+        query = select_query()
     keywords, location = query[0], query[1]
     f_wt = query[2] if len(query) > 2 else None
     url = build_search_url(keywords, location, f_wt)
-    req = urllib.request.Request(
-        url, headers={"User-Agent": "JobRadar/1.0 (personal job discovery)", "Accept": "text/html"}
-    )
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    req = urllib.request.Request(url, headers=headers)
     try:
         with opener.open(req, timeout=20) as response:
             body = response.read(500001)
